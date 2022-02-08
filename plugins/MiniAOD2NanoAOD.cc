@@ -32,6 +32,7 @@
 #include "DataFormats/PatCandidates/interface/Muon.h"
 #include "DataFormats/PatCandidates/interface/Jet.h"
 #include "DataFormats/PatCandidates/interface/MET.h"
+#include "DataFormats/PatCandidates/interface/Photon.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 
@@ -113,7 +114,7 @@ private:
   //edm::EDGetTokenT<reco::PFTauCollection> tauToken;  
   //edm::EDGetTokenT<reco::PFTauDiscriminator> tauDiscriminatorTokens[12]; 
 
-  //edm::EDGetTokenT<reco::PhotonCollection> photonToken;
+  edm::EDGetTokenT<std::vector<pat::Photon> > photonToken;
   edm::EDGetTokenT<std::vector<pat::MET> > metToken;
   edm::EDGetTokenT<edm::View<pat::Jet> > jetToken;
   
@@ -195,6 +196,7 @@ private:
   bool value_tau_idantimuloose[max_tau];
   bool value_tau_idantimumedium[max_tau];
   bool value_tau_idantimutight[max_tau];
+  */
 
   // Photons
   const static int max_ph = 1000;
@@ -207,7 +209,7 @@ private:
   float value_ph_pfreliso03all[max_ph];
   int value_ph_genpartidx[max_ph];
   int value_ph_jetidx[max_ph];
-  */
+ 
   // MET
   float value_met_pt;
   float value_met_phi;
@@ -334,9 +336,10 @@ MiniAOD2NanoAOD::MiniAOD2NanoAOD(const edm::ParameterSet &iConfig)
   tree->Branch("Tau_idAntiMuLoose", value_tau_idantimuloose, "Tau_idAntiMuLoose[nTau]/O");
   tree->Branch("Tau_idAntiMuMedium", value_tau_idantimumedium, "Tau_idAntiMuMedium[nTau]/O");
   tree->Branch("Tau_idAntiMuTight", value_tau_idantimutight, "Tau_idAntiMuTight[nTau]/O");
+  */
 
   // Photons
-  photonToken = consumes<reco::PhotonCollection>(edm::InputTag("gedPhotons"));
+  photonToken = consumes<std::vector<pat::Photon> >(edm::InputTag("slimmedPhotons"));
 
   tree->Branch("nPhoton", &value_ph_n, "nPhoton/i");
   tree->Branch("Photon_pt", value_ph_pt, "Photon_pt[nPhoton]/F");
@@ -347,7 +350,6 @@ MiniAOD2NanoAOD::MiniAOD2NanoAOD(const edm::ParameterSet &iConfig)
   tree->Branch("Photon_pfRelIso03_all", value_ph_pfreliso03all, "Photon_pfRelIso03_all[nPhoton]/F");
   tree->Branch("Photon_jetIdx", value_ph_jetidx, "Photon_jetIdx[nPhoton]/I");
   tree->Branch("Photon_genPartIdx", value_ph_genpartidx, "Photon_genPartIdx[nPhoton]/I");
-  */
 
   // MET
   metToken = consumes<std::vector<pat::MET> >(edm::InputTag("slimmedMETs"));
@@ -571,17 +573,18 @@ void MiniAOD2NanoAOD::analyze(const edm::Event &iEvent,
       value_tau_n++;
     }
   }
+  */
 
   // Photons
-  Handle<PhotonCollection> photons;
+  Handle<std::vector<pat::Photon> > photons;
   iEvent.getByToken(photonToken, photons);
 
   value_ph_n = 0;
   const float ph_min_pt = 5;
-  std::vector<Photon> selectedPhotons;
+ 
   for (auto it = photons->begin(); it != photons->end(); it++) {
     if (it->pt() > ph_min_pt) {
-      selectedPhotons.emplace_back(*it);
+      
       value_ph_pt[value_ph_n] = it->pt();
       value_ph_eta[value_ph_n] = it->eta();
       value_ph_phi[value_ph_n] = it->phi();
@@ -593,8 +596,7 @@ void MiniAOD2NanoAOD::analyze(const edm::Event &iEvent,
       value_ph_n++;
     }
   }
-  */
-
+ 
   // MET
   Handle<std::vector<pat::MET> > met;
   iEvent.getByToken(metToken, met);
@@ -631,7 +633,6 @@ void MiniAOD2NanoAOD::analyze(const edm::Event &iEvent,
 
   }
    
-
   // Fill event
   tree->Fill();
 }

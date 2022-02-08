@@ -19,7 +19,7 @@ process.options = cms.untracked.PSet(
 )
 
 # Set the maximum number of events to be processed (-1 processes all events)
-process.maxEvents = cms.untracked.PSet(input=cms.untracked.int32(100000))
+process.maxEvents = cms.untracked.PSet(input=cms.untracked.int32(100))
 
 goodJSON = 'data/Cert_13TeV_16Dec2015ReReco_Collisions15_25ns_JSON_v2.txt'
 myLumis = LumiList.LumiList(filename = goodJSON).getCMSSWString().split(',') 
