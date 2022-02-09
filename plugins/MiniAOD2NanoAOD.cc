@@ -33,6 +33,8 @@
 #include "DataFormats/PatCandidates/interface/Jet.h"
 #include "DataFormats/PatCandidates/interface/MET.h"
 #include "DataFormats/PatCandidates/interface/Photon.h"
+#include "DataFormats/PatCandidates/interface/Tau.h"
+
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 
@@ -45,6 +47,9 @@
 
 #include "DataFormats/JetReco/interface/PileupJetIdentifier.h"
 #include "DataFormats/Common/interface/ValueMap.h"
+
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
 
 const static std::vector<std::string> interestingTriggers = {
     "HLT_IsoMu24_eta2p1",
@@ -105,19 +110,22 @@ private:
   virtual void analyze(const edm::Event &, const edm::EventSetup &);
   virtual void endJob();
   bool providesGoodLumisection(const edm::Event &iEvent);
+  bool isData;
 
   edm::EDGetTokenT<edm::TriggerResults> triggerToken;
   edm::EDGetTokenT<reco::VertexCollection> vertexToken;
   edm::EDGetTokenT<std::vector<pat::Muon> > muonToken;
   edm::EDGetTokenT<std::vector<pat::Electron> > electronToken;
 
-  //edm::EDGetTokenT<reco::PFTauCollection> tauToken;  
+  edm::EDGetTokenT<std::vector<pat::Tau> > tauToken;  
   //edm::EDGetTokenT<reco::PFTauDiscriminator> tauDiscriminatorTokens[12]; 
 
   edm::EDGetTokenT<std::vector<pat::Photon> > photonToken;
   edm::EDGetTokenT<std::vector<pat::MET> > metToken;
   edm::EDGetTokenT<edm::View<pat::Jet> > jetToken;
-  
+  edm::EDGetTokenT<reco::GenParticleCollection> gensToken;
+
+
   TTree *tree;
 
   // Event information
@@ -171,7 +179,7 @@ private:
   bool value_el_pfid[max_el];
   int value_el_genpartidx[max_el];
   int value_el_jetidx[max_el];
-  /*
+  
   // Taus
   const static int max_tau = 1000;
   UInt_t value_tau_n;
@@ -196,7 +204,6 @@ private:
   bool value_tau_idantimuloose[max_tau];
   bool value_tau_idantimumedium[max_tau];
   bool value_tau_idantimutight[max_tau];
-  */
 
   // Photons
   const static int max_ph = 1000;
@@ -230,9 +237,20 @@ private:
   float value_jet_puid_disc[max_jet];
   float value_jet_btag[max_jet];
 
+  // Generator particles
+  const static int max_gen = 1000;
+  UInt_t value_gen_n;
+  float value_gen_pt[max_gen];
+  float value_gen_eta[max_gen];
+  float value_gen_phi[max_gen];
+  float value_gen_mass[max_gen];
+  int value_gen_pdgid[max_gen];
+  int value_gen_status[max_gen];
+
 };
 
 MiniAOD2NanoAOD::MiniAOD2NanoAOD(const edm::ParameterSet &iConfig)
+  : isData(iConfig.getParameter<bool>("isData"))
 {
   edm::Service<TFileService> fs;
 
@@ -298,9 +316,9 @@ MiniAOD2NanoAOD::MiniAOD2NanoAOD(const edm::ParameterSet &iConfig)
   tree->Branch("Electron_genPartIdx", value_el_genpartidx, "Electron_genPartIdx[nElectron]/I");
 
   // Taus
-  /*
-  tauToken = consumes<reco::PFTauCollection>(edm::InputTag("hpsPFTauProducer"));
+  tauToken = consumes<std::vector<pat::Tau> >(edm::InputTag("slimmedTaus"));
 
+  /*
   tauDiscriminatorTokens[0] = consumes<reco::PFTauDiscriminator>(edm::InputTag("hpsPFTauDiscriminationByDecayModeFinding"));
   tauDiscriminatorTokens[1] = consumes<reco::PFTauDiscriminator>(edm::InputTag("hpsPFTauDiscriminationByRawCombinedIsolationDBSumPtCorr"));
   tauDiscriminatorTokens[2] = consumes<reco::PFTauDiscriminator>(edm::InputTag("hpsPFTauDiscriminationByVLooseCombinedIsolationDBSumPtCorr"));
@@ -313,6 +331,7 @@ MiniAOD2NanoAOD::MiniAOD2NanoAOD(const edm::ParameterSet &iConfig)
   tauDiscriminatorTokens[9] = consumes<reco::PFTauDiscriminator>(edm::InputTag("hpsPFTauDiscriminationByLooseMuonRejection"));
   tauDiscriminatorTokens[10] = consumes<reco::PFTauDiscriminator>(edm::InputTag("hpsPFTauDiscriminationByMediumMuonRejection"));
   tauDiscriminatorTokens[11] = consumes<reco::PFTauDiscriminator>(edm::InputTag("hpsPFTauDiscriminationByTightMuonRejection"));
+  */
 
   tree->Branch("nTau", &value_tau_n, "nTau/i");
   tree->Branch("Tau_pt", value_tau_pt, "Tau_pt[nTau]/F");
@@ -321,22 +340,21 @@ MiniAOD2NanoAOD::MiniAOD2NanoAOD(const edm::ParameterSet &iConfig)
   tree->Branch("Tau_mass", value_tau_mass, "Tau_mass[nTau]/F");
   tree->Branch("Tau_charge", value_tau_charge, "Tau_charge[nTau]/I");
   tree->Branch("Tau_decayMode", value_tau_decaymode, "Tau_decayMode[nTau]/I");
-  tree->Branch("Tau_relIso_all", value_tau_reliso_all, "Tau_relIso_all[nTau]/F");
-  tree->Branch("Tau_jetIdx", value_tau_jetidx, "Tau_jetIdx[nTau]/I");
-  tree->Branch("Tau_genPartIdx", value_tau_genpartidx, "Tau_genPartIdx[nTau]/I");
+  //tree->Branch("Tau_relIso_all", value_tau_reliso_all, "Tau_relIso_all[nTau]/F");
+  //tree->Branch("Tau_jetIdx", value_tau_jetidx, "Tau_jetIdx[nTau]/I");
+  //tree->Branch("Tau_genPartIdx", value_tau_genpartidx, "Tau_genPartIdx[nTau]/I");
   tree->Branch("Tau_idDecayMode", value_tau_iddecaymode, "Tau_idDecayMode[nTau]/O");
-  tree->Branch("Tau_idIsoRaw", value_tau_idisoraw, "Tau_idIsoRaw[nTau]/F");
-  tree->Branch("Tau_idIsoVLoose", value_tau_idisovloose, "Tau_idIsoVLoose[nTau]/O");
-  tree->Branch("Tau_idIsoLoose", value_tau_idisoloose, "Tau_idIsoLoose[nTau]/O");
-  tree->Branch("Tau_idIsoMedium", value_tau_idisomedium, "Tau_idIsoMedium[nTau]/O");
-  tree->Branch("Tau_idIsoTight", value_tau_idisotight, "Tau_idIsoTight[nTau]/O");
-  tree->Branch("Tau_idAntiEleLoose", value_tau_idantieleloose, "Tau_idAntiEleLoose[nTau]/O");
-  tree->Branch("Tau_idAntiEleMedium", value_tau_idantielemedium, "Tau_idAntiEleMedium[nTau]/O");
-  tree->Branch("Tau_idAntiEleTight", value_tau_idantieletight, "Tau_idAntiEleTight[nTau]/O");
-  tree->Branch("Tau_idAntiMuLoose", value_tau_idantimuloose, "Tau_idAntiMuLoose[nTau]/O");
-  tree->Branch("Tau_idAntiMuMedium", value_tau_idantimumedium, "Tau_idAntiMuMedium[nTau]/O");
-  tree->Branch("Tau_idAntiMuTight", value_tau_idantimutight, "Tau_idAntiMuTight[nTau]/O");
-  */
+  //tree->Branch("Tau_idIsoRaw", value_tau_idisoraw, "Tau_idIsoRaw[nTau]/F");
+  //tree->Branch("Tau_idIsoVLoose", value_tau_idisovloose, "Tau_idIsoVLoose[nTau]/O");
+  //tree->Branch("Tau_idIsoLoose", value_tau_idisoloose, "Tau_idIsoLoose[nTau]/O");
+  //tree->Branch("Tau_idIsoMedium", value_tau_idisomedium, "Tau_idIsoMedium[nTau]/O");
+  //tree->Branch("Tau_idIsoTight", value_tau_idisotight, "Tau_idIsoTight[nTau]/O");
+  //tree->Branch("Tau_idAntiEleLoose", value_tau_idantieleloose, "Tau_idAntiEleLoose[nTau]/O");
+  //tree->Branch("Tau_idAntiEleMedium", value_tau_idantielemedium, "Tau_idAntiEleMedium[nTau]/O");
+  //tree->Branch("Tau_idAntiEleTight", value_tau_idantieletight, "Tau_idAntiEleTight[nTau]/O");
+  //tree->Branch("Tau_idAntiMuLoose", value_tau_idantimuloose, "Tau_idAntiMuLoose[nTau]/O");
+  //tree->Branch("Tau_idAntiMuMedium", value_tau_idantimumedium, "Tau_idAntiMuMedium[nTau]/O");
+  //tree->Branch("Tau_idAntiMuTight", value_tau_idantimutight, "Tau_idAntiMuTight[nTau]/O");
 
   // Photons
   photonToken = consumes<std::vector<pat::Photon> >(edm::InputTag("slimmedPhotons"));
@@ -370,6 +388,21 @@ MiniAOD2NanoAOD::MiniAOD2NanoAOD(const edm::ParameterSet &iConfig)
   tree->Branch("Jet_eta", value_jet_eta, "Jet_eta[nJet]/F");
   tree->Branch("Jet_phi", value_jet_phi, "Jet_phi[nJet]/F");
   tree->Branch("Jet_mass", value_jet_mass, "Jet_mass[nJet]/F");
+  
+  if (!isData) {
+
+    gensToken = consumes<reco::GenParticleCollection>(edm::InputTag("prunedGenParticles"));
+
+    tree->Branch("nGenPart", &value_gen_n, "nGenPart/i");
+    tree->Branch("GenPart_pt", value_gen_pt, "GenPart_pt[nGenPart]/F");
+    tree->Branch("GenPart_eta", value_gen_eta, "GenPart_eta[nGenPart]/F");
+    tree->Branch("GenPart_phi", value_gen_phi, "GenPart_phi[nGenPart]/F");
+    tree->Branch("GenPart_mass", value_gen_mass, "GenPart_mass[nGenPart]/F");
+    tree->Branch("GenPart_pdgId", value_gen_pdgid, "GenPart_pdgId[nGenPart]/I");
+    tree->Branch("GenPart_status", value_gen_status, "GenPart_status[nGenPart]/I");
+  }
+
+
 }
 
 MiniAOD2NanoAOD::~MiniAOD2NanoAOD() {}
@@ -432,10 +465,13 @@ void MiniAOD2NanoAOD::analyze(const edm::Event &iEvent,
 
   value_mu_n = 0;
   const float mu_min_pt = 3;
- 
+  std::vector<pat::Muon> selectedMuons;
+
   for (auto it = muons->begin(); it != muons->end(); it++) {
     if (it->pt() > mu_min_pt) {
-    
+
+      selectedMuons.emplace_back(*it);
+
       value_mu_pt[value_mu_n] = it->pt();
       value_mu_eta[value_mu_n] = it->eta();
       value_mu_phi[value_mu_n] = it->phi();
@@ -478,10 +514,13 @@ void MiniAOD2NanoAOD::analyze(const edm::Event &iEvent,
 
   value_el_n = 0;
   const float el_min_pt = 5;
+  std::vector<pat::Electron> selectedElectrons;
 
   for (auto it = electrons->begin(); it != electrons->end(); it++) {
     if (it->pt() > el_min_pt) {
      
+      selectedElectrons.emplace_back(*it);
+      
       value_el_pt[value_el_n] = it->pt();
       value_el_eta[value_el_n] = it->eta();
       value_el_phi[value_el_n] = it->phi();
@@ -513,15 +552,11 @@ void MiniAOD2NanoAOD::analyze(const edm::Event &iEvent,
     }
   }
 
-  /*
   // Taus
-  // References for Tau collections and IDs:
-  // https://twiki.cern.ch/twiki/bin/view/CMSPublic/SWGuidePFTauID#53X
-  // https://twiki.cern.ch/twiki/bin/view/CMSPublic/NutShellRecipeFor5312AndNewer
-
-  Handle<PFTauCollection> taus;
+  Handle<std::vector<pat::Tau> > taus;
   iEvent.getByToken(tauToken, taus);
 
+  /*
   Handle<PFTauDiscriminator> tausLooseIso, tausVLooseIso, tausMediumIso, tausTightIso,
                              tausDecayMode, tausLooseEleRej, tausMediumEleRej,
                              tausTightEleRej, tausLooseMuonRej, tausMediumMuonRej,
@@ -539,41 +574,45 @@ void MiniAOD2NanoAOD::analyze(const edm::Event &iEvent,
   iEvent.getByToken(tauDiscriminatorTokens[9], tausLooseMuonRej);
   iEvent.getByToken(tauDiscriminatorTokens[10], tausMediumMuonRej);
   iEvent.getByToken(tauDiscriminatorTokens[11], tausTightMuonRej);
+  */
 
   const float tau_min_pt = 15;
   value_tau_n = 0;
-  std::vector<PFTau> selectedTaus;
+  std::vector<pat::Tau> selectedTaus;
+
   for (auto it = taus->begin(); it != taus->end(); it++) {
     if (it->pt() > tau_min_pt) {
+    
       selectedTaus.emplace_back(*it);
+
       value_tau_pt[value_tau_n] = it->pt();
       value_tau_eta[value_tau_n] = it->eta();
       value_tau_phi[value_tau_n] = it->phi();
       value_tau_charge[value_tau_n] = it->charge();
       value_tau_mass[value_tau_n] = it->mass();
       value_tau_decaymode[value_tau_n] = it->decayMode();
-      // Discriminators
-      const auto idx = it - taus->begin();
-      value_tau_iddecaymode[value_tau_n] = tausDecayMode->operator[](idx).second;
-      value_tau_idisoraw[value_tau_n] = tausRawIso->operator[](idx).second;
-      value_tau_idisovloose[value_tau_n] = tausVLooseIso->operator[](idx).second;
-      value_tau_idisoloose[value_tau_n] = tausLooseIso->operator[](idx).second;
-      value_tau_idisomedium[value_tau_n] = tausMediumIso->operator[](idx).second;
-      value_tau_idisotight[value_tau_n] = tausTightIso->operator[](idx).second;
-      value_tau_idantieleloose[value_tau_n] = tausLooseEleRej->operator[](idx).second;
-      value_tau_idantielemedium[value_tau_n] = tausMediumEleRej->operator[](idx).second;
-      value_tau_idantieletight[value_tau_n] = tausTightEleRej->operator[](idx).second;
-      value_tau_idantimuloose[value_tau_n] = tausLooseMuonRej->operator[](idx).second;
-      value_tau_idantimumedium[value_tau_n] = tausMediumMuonRej->operator[](idx).second;
-      value_tau_idantimutight[value_tau_n] = tausTightMuonRej->operator[](idx).second;
 
-      value_tau_reliso_all[value_tau_n] = (it->isolationPFChargedHadrCandsPtSum() + it->isolationPFGammaCandsEtSum()) / it->pt();
+      //value_tau_iddecaymode[value_tau_n] = it->tauID("decayModeFinding");
+      //value_tau_idisoraw[value_tau_n] = it->tauID("hpsPFTauDiscriminationByRawCombinedIsolationDBSumPtCorr");
+      //value_tau_idisovloose[value_tau_n] = it->tauID("hpsPFTauDiscriminationByVLooseCombinedIsolationDBSumPtCorr");
+      //value_tau_idisoloose[value_tau_n] = it->tauID("hpsPFTauDiscriminationByLooseCombinedIsolationDBSumPtCorr");
+      //value_tau_idisomedium[value_tau_n] = it->tauID("hpsPFTauDiscriminationByMediumCombinedIsolationDBSumPtCorr");
+      //value_tau_idisotight[value_tau_n] = it->tauID("hpsPFTauDiscriminationByTightCombinedIsolationDBSumPtCorr");
+      //value_tau_idantieleloose[value_tau_n] = it->tauID("hpsPFTauDiscriminationByLooseElectronRejection");
+      //value_tau_idantielemedium[value_tau_n] = it->tauID("hpsPFTauDiscriminationByMediumElectronRejection");
+      //value_tau_idantieletight[value_tau_n] = it->tauID("hpsPFTauDiscriminationByTightElectronRejection");
+      //value_tau_idantimuloose[value_tau_n] = it->tauID("hpsPFTauDiscriminationByLooseMuonRejection");
+      //value_tau_idantimumedium[value_tau_n] = it->tauID("hpsPFTauDiscriminationByMediumMuonRejection");
+      //value_tau_idantimutight[value_tau_n] = it->tauID("hpsPFTauDiscriminationByTightMuonRejection");
+
+      
+      // fix value_tau_reliso_all[value_tau_n] = (it->isolationPFChargedHadrCandsPtSum() + it->isolationPFGammaCandsEtSum()) / it->pt();
       value_tau_jetidx[value_tau_n] = -1;
       value_tau_genpartidx[value_tau_n] = -1;
       value_tau_n++;
+    
     }
   }
-  */
 
   // Photons
   Handle<std::vector<pat::Photon> > photons;
@@ -581,10 +620,13 @@ void MiniAOD2NanoAOD::analyze(const edm::Event &iEvent,
 
   value_ph_n = 0;
   const float ph_min_pt = 5;
- 
+  std::vector<pat::Photon> selectedPhotons;
+
   for (auto it = photons->begin(); it != photons->end(); it++) {
     if (it->pt() > ph_min_pt) {
       
+      selectedPhotons.emplace_back(*it);
+
       value_ph_pt[value_ph_n] = it->pt();
       value_ph_eta[value_ph_n] = it->eta();
       value_ph_phi[value_ph_n] = it->phi();
@@ -615,13 +657,16 @@ void MiniAOD2NanoAOD::analyze(const edm::Event &iEvent,
 
   const float jet_min_pt = 15;
   value_jet_n = 0;
- 
+  std::vector<pat::Jet> selectedJets;
+
   for ( size_t i=0; i<jets->size(); ++i ) {
 
     auto jet = jets->refAt(i);
 
     if ( jet->pt() > jet_min_pt ) {
             
+      selectedJets.emplace_back(jet);
+
       value_jet_pt[value_jet_n] = jet->pt();
       value_jet_eta[value_jet_n] = jet->eta();
       value_jet_phi[value_jet_n] = jet->phi();
@@ -633,6 +678,118 @@ void MiniAOD2NanoAOD::analyze(const edm::Event &iEvent,
 
   }
    
+  // Generator particles
+  if (!isData) {
+    Handle<GenParticleCollection> gens;
+    iEvent.getByToken(gensToken, gens);
+
+    value_gen_n = 0;
+    std::vector<GenParticle> interestingGenParticles;
+    for (auto it = gens->begin(); it != gens->end(); it++) {
+      const auto status = it->status();
+      const auto pdgId = std::abs(it->pdgId());
+      if (status == 1 && pdgId == 13) { // muon
+        interestingGenParticles.emplace_back(*it);
+      }
+      if (status == 1 && pdgId == 11) { // electron
+        interestingGenParticles.emplace_back(*it);
+      }
+      if (status == 1 && pdgId == 22) { // photon
+        interestingGenParticles.emplace_back(*it);
+      }
+      if (status == 2 && pdgId == 15) { // tau
+        interestingGenParticles.emplace_back(*it);
+      }
+    }
+
+    // Match muons with gen particles and jets
+    for (auto p = selectedMuons.begin(); p != selectedMuons.end(); p++) {
+      // Gen particle matching
+      auto p4 = p->p4();
+      auto idx = findBestVisibleMatch(interestingGenParticles, p4);
+      if (idx != -1) {
+        auto g = interestingGenParticles.begin() + idx;
+        value_gen_pt[value_gen_n] = g->pt();
+        value_gen_eta[value_gen_n] = g->eta();
+        value_gen_phi[value_gen_n] = g->phi();
+        value_gen_mass[value_gen_n] = g->mass();
+        value_gen_pdgid[value_gen_n] = g->pdgId();
+        value_gen_status[value_gen_n] = g->status();
+        value_mu_genpartidx[p - selectedMuons.begin()] = value_gen_n;
+        value_gen_n++;
+      }
+
+      // Jet matching
+      value_mu_jetidx[p - selectedMuons.begin()] = findBestMatch(selectedJets, p4);
+    }
+
+    // Match electrons with gen particles and jets
+    for (auto p = selectedElectrons.begin(); p != selectedElectrons.end(); p++) {
+      // Gen particle matching
+      auto p4 = p->p4();
+      auto idx = findBestVisibleMatch(interestingGenParticles, p4);
+      if (idx != -1) {
+        auto g = interestingGenParticles.begin() + idx;
+        value_gen_pt[value_gen_n] = g->pt();
+        value_gen_eta[value_gen_n] = g->eta();
+        value_gen_phi[value_gen_n] = g->phi();
+        value_gen_mass[value_gen_n] = g->mass();
+        value_gen_pdgid[value_gen_n] = g->pdgId();
+        value_gen_status[value_gen_n] = g->status();
+        value_el_genpartidx[p - selectedElectrons.begin()] = value_gen_n;
+        value_gen_n++;
+      }
+
+      // Jet matching
+      value_el_jetidx[p - selectedElectrons.begin()] = findBestMatch(selectedJets, p4);
+    }
+
+   // Match photons with gen particles and jets
+    for (auto p = selectedPhotons.begin(); p != selectedPhotons.end(); p++) {
+      // Gen particle matching
+      auto p4 = p->p4();
+      auto idx = findBestVisibleMatch(interestingGenParticles, p4);
+      if (idx != -1) {
+        auto g = interestingGenParticles.begin() + idx;
+        value_gen_pt[value_gen_n] = g->pt();
+        value_gen_eta[value_gen_n] = g->eta();
+        value_gen_phi[value_gen_n] = g->phi();
+        value_gen_mass[value_gen_n] = g->mass();
+        value_gen_pdgid[value_gen_n] = g->pdgId();
+        value_gen_status[value_gen_n] = g->status();
+        value_ph_genpartidx[p - selectedPhotons.begin()] = value_gen_n;
+        value_gen_n++;
+      }
+      // Jet matching
+      value_ph_jetidx[p - selectedPhotons.begin()] = findBestMatch(selectedJets, p4);
+    }
+
+    // Match taus with gen particles and jets
+    for (auto p = selectedTaus.begin(); p != selectedTaus.end(); p++) {
+      // Gen particle matching
+      auto p4 = p->p4();
+      auto idx = findBestVisibleMatch(interestingGenParticles, p4); // TODO: Subtract the invisible parts only once.
+      if (idx != -1) {
+        auto g = interestingGenParticles.begin() + idx;
+        value_gen_pt[value_gen_n] = g->pt();
+        value_gen_eta[value_gen_n] = g->eta();
+        value_gen_phi[value_gen_n] = g->phi();
+        value_gen_mass[value_gen_n] = g->mass();
+        value_gen_pdgid[value_gen_n] = g->pdgId();
+        value_gen_status[value_gen_n] = g->status();
+        value_tau_genpartidx[p - selectedTaus.begin()] = value_gen_n;
+	value_gen_n++;
+      }
+
+      // Jet matching
+      value_tau_jetidx[p - selectedTaus.begin()] = findBestMatch(selectedJets, p4);
+    }
+
+  } // !isData
+
+
+
+
   // Fill event
   tree->Fill();
 }
